@@ -74,7 +74,10 @@ def main():
         description="Download CNB exchange rates and convert to ledger format."
     )
     parser.add_argument(
-        "--end-date", required=True, help="End date in YYYY-MM-DD format"
+        "--end-date",
+        type=str,
+        default=datetime.today().strftime("%Y-%m-%d"),
+        help="End date in YYYY-MM-DD format (default: today)",
     )
     parser.add_argument(
         "--historic",
