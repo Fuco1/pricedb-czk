@@ -34,8 +34,11 @@ P 2025/08/07 USD 22.765 CZK
 
 Files are generated in the working directory as `<currency>CZK.ledger` and `<currency>CZK-monthly.ledger`.
 
-## Direct download links
-You can download individual pricedb files directly from GitHub:
+## Usage in ledger
+
+### Direct download links
+You can download individual pricedb files directly from GitHub.  The files are
+automatically updated every day.
 
 - **Daily prices (example):**
   - https://raw.githubusercontent.com/Fuco1/pricedb-czk/master/USDCZK.ledger
@@ -47,7 +50,42 @@ You can download individual pricedb files directly from GitHub:
 
 You can download any other currency file by replacing the currency code in the URL.
 
+To include the database in your ledger, use
+
+```
+include USDCZK.ledger
+```
+
+### Usage with git
+
+Clone the repository:
+
+```bash
+git clone https://github.com/Fuco1/pricedb-czk.git
+```
+
+and create a crontab to pull changes every day:
+
+```
+crontab -e
+```
+
+```
+0 15 * * * cd <path to repo> && git pull --autostash
+```
+
+This will run the git pull every day at 15:00 (3:00 PM).
+
+Include the files you want in your ledger file directly from the repository, for example:
+
+```
+include /home/XYZ/dev/ledger/pricedb-czk/EURCZK-monthly.ledger
+```
+
+This way you will always have the most up-to date prices without ever having to think about it
+
 ## Supported currencies
+
 **Active:**
 AUD, BGN, BRL, CAD, CHF, CNY, DKK, EUR, GBP, HKD, HUF, IDR, ILS, INR, ISK, JPY, KRW, MXN, MYR, NOK, NZD, PHP, PLN, RON, RUB, SEK, SGD, THB, TRY, USD, XDR, ZAR
 
