@@ -38,12 +38,12 @@ Files are generated in the working directory as `<currency>CZK.ledger` and `<cur
 You can download individual pricedb files directly from GitHub:
 
 - **Daily prices (example):**
-  https://raw.githubusercontent.com/Fuco1/pricedb-czk/master/USDCZK.ledger
-  https://raw.githubusercontent.com/Fuco1/pricedb-czk/master/EURCZK.ledger
+  - https://raw.githubusercontent.com/Fuco1/pricedb-czk/master/USDCZK.ledger
+  - https://raw.githubusercontent.com/Fuco1/pricedb-czk/master/EURCZK.ledger
 
 - **Monthly prices (example):**
-  https://raw.githubusercontent.com/Fuco1/pricedb-czk/master/USDCZK-monthly.ledger
-  https://raw.githubusercontent.com/Fuco1/pricedb-czk/master/EURCZK-monthly.ledger
+  - https://raw.githubusercontent.com/Fuco1/pricedb-czk/master/USDCZK-monthly.ledger
+  - https://raw.githubusercontent.com/Fuco1/pricedb-czk/master/EURCZK-monthly.ledger
 
 You can download any other currency file by replacing the currency code in the URL.
 
@@ -51,7 +51,7 @@ You can download any other currency file by replacing the currency code in the U
 **Active:**
 AUD, BGN, BRL, CAD, CHF, CNY, DKK, EUR, GBP, HKD, HUF, IDR, ILS, INR, ISK, JPY, KRW, MXN, MYR, NOK, NZD, PHP, PLN, RON, RUB, SEK, SGD, THB, TRY, USD, XDR, ZAR
 
-**Discontinued:**
+**Discontinued:** (available with `--historic`)
 ATS, BEF, CYP, DEM, EEK, ESP, FIM, FRF, GRD, HRK, IEP, ITL, LTL, LUF, LVL, MTL, NLG, PTE, ROL, SIT, SKK, TRL
 
 ## Inspiration & attribution
