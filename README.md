@@ -82,7 +82,25 @@ Include the files you want in your ledger file directly from the repository, for
 include /home/XYZ/dev/ledger/pricedb-czk/EURCZK-monthly.ledger
 ```
 
-This way you will always have the most up-to date prices without ever having to think about it
+This way you will always have the most up-to date prices without ever having to think about it.
+
+### Using different currency symbols
+
+If you use different currency symbols, for example `€` instead of `EUR`, you can use a modification script `./modify`:
+
+``` bash
+./modify.sh --from € --to Kc EURCZK-monthly.ledger
+```
+
+This will transform the `EUR` to `€` and `CZK` to `Kc`.  Both `--from` and `--to` are optional.  The result is stored in `<file>-modded.ledger`.   You can add this script to the crontab and include the moddef files instead:
+
+``` bash
+0 15 * * * cd <path to repo> && git pull --autostash && /bin/bash modify.sh --from € --to Kc EURCZK-monthly.ledger
+```
+
+```
+include /home/XYZ/dev/ledger/pricedb-czk/EURCZK-monthly-modded.ledger
+```
 
 ## Supported currencies
 
