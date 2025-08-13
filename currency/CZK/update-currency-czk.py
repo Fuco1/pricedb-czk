@@ -115,14 +115,9 @@ def main():
             print(f"Failed to download {currency}: {e}")
             continue
 
-        raw_filename = f"{currency}-raw.txt"
-        with open(raw_filename, "w", encoding="utf-8") as f:
-            f.write(response.text)
-
         lines = response.text.strip().split("\n")
         if len(lines) < 2:
             print(f"No data for {currency}")
-            os.remove(raw_filename)
             continue
 
         match = re.search(r"Množství: (\d+)", lines[0])
@@ -166,8 +161,6 @@ def main():
         monthly_filename = f"{currency}CZK-monthly.ledger"
         with open(monthly_filename, "w", encoding="utf-8") as f:
             f.write("\n".join(monthly_lines))
-
-        os.remove(raw_filename)
 
         print(f"{currency}: {len(ledger_lines)} entries saved.")
 
