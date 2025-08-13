@@ -3,7 +3,7 @@
 # Parse options using getopt
 OPTIONS=$(getopt -o '' --long from:,to: -- "$@")
 if [ $? -ne 0 ]; then
-    echo "Usage: $0 [--from NEW_FROM] [--to NEW_TO] file"
+    echo "Usage: $0 [--from NEW_FROM] [--to NEW_TO] file1 [file2 ...]"
     exit 1
 fi
 
@@ -33,28 +33,33 @@ while true; do
     esac
 done
 
-file="$1"
-
-if [[ -z "$file" ]]; then
-    echo "Usage: $0 [--from NEW_FROM] [--to NEW_TO] file"
+if [[ $# -lt 1 ]]; then
+    echo "Usage: $0 [--from NEW_FROM] [--to NEW_TO] file1 [file2 ...]"
     exit 1
 fi
 
-# Extract filename and extension
-filename="${file%.*}"
-extension="${file##*.}"
+for file in "$@"; do
+    if [[ ! -f "$file" ]]; then
+        echo "Skipping '$file' (not found)"
+        continue
+    fi
 
-# If no extension (filename == extension), just append '-modded'
-if [[ "$filename" == "$extension" ]]; then
-    newfile="${filename}-modded"
-else
-    newfile="${filename}-modded.${extension}"
-fi
+    # Extract filename and extension
+    filename="${file%.*}"
+    extension="${file##*.}"
 
-awk -v from="$from_currency" -v to="$to_currency" '{
-    if (from != "") $3 = from;
-    if (to   != "") $5 = to;
-    print
-}' OFS=" " "$file" > "$newfile"
+    # If no extension (filename == extension), just append '-modded'
+    if [[ "$filename" == "$extension" ]]; then
+        newfile="${filename}-modded"
+    else
+        newfile="${filename}-modded.${extension}"
+    fi
 
-echo "Modified file saved as: $newfile"
+    awk -v from="$from_currency" -v to="$to_currency" '{
+        if (from != "") $3 = from;
+        if (to   != "") $5 = to;
+        print
+    }' OFS=" " "$file" > "$newfile"
+
+    echo "Modified file saved as: $newfile"
+done
