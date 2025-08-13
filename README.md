@@ -41,12 +41,12 @@ You can download individual pricedb files directly from GitHub.  The files are
 automatically updated every day.
 
 - **Daily prices (example):**
-  - https://raw.githubusercontent.com/Fuco1/pricedb-czk/master/USDCZK.ledger
-  - https://raw.githubusercontent.com/Fuco1/pricedb-czk/master/EURCZK.ledger
+  - https://raw.githubusercontent.com/Fuco1/pricedb-czk/master/currency/CZK/USDCZK.ledger
+  - https://raw.githubusercontent.com/Fuco1/pricedb-czk/master/currency/CZK/EURCZK.ledger
 
 - **Monthly prices (example):**
-  - https://raw.githubusercontent.com/Fuco1/pricedb-czk/master/USDCZK-monthly.ledger
-  - https://raw.githubusercontent.com/Fuco1/pricedb-czk/master/EURCZK-monthly.ledger
+  - https://raw.githubusercontent.com/Fuco1/pricedb-czk/master/currency/CZK/USDCZK-monthly.ledger
+  - https://raw.githubusercontent.com/Fuco1/pricedb-czk/master/currency/CZK/EURCZK-monthly.ledger
 
 You can download any other currency file by replacing the currency code in the URL.
 
