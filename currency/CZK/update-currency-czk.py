@@ -5,6 +5,7 @@ from datetime import datetime
 import sys
 import argparse
 import os
+import re
 
 # Still existing currencies
 currencies_existing = [
@@ -124,6 +125,12 @@ def main():
             os.remove(raw_filename)
             continue
 
+        match = re.search(r"Množství: (\d+)", lines[0])
+        if match:
+            quantity = int(match.group(1))
+        else:
+            quantity = 1
+
         data_lines = lines[1:]  # Remove header line
 
         ledger_lines = []
@@ -137,11 +144,13 @@ def main():
             rate_str = parts[1].strip().replace(",", ".")
             try:
                 date_obj = datetime.strptime(date_str, "%d.%m.%Y")
-                rate = float(rate_str)
+                rate = float(rate_str) / quantity
             except ValueError:
                 continue
 
-            ledger_line = f"P {date_obj.strftime('%Y/%m/%d')} {currency} {rate} CZK"
+            ledger_line = (
+                f"P {date_obj.strftime('%Y/%m/%d')} {currency} {round(rate, 7)} CZK"
+            )
             ledger_lines.append(ledger_line)
 
             # Monthly filter: first available entry for each month
