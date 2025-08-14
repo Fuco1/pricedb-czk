@@ -156,11 +156,11 @@ def main():
 
         ledger_filename = f"{currency}CZK.ledger"
         with open(ledger_filename, "w", encoding="utf-8") as f:
-            f.write("\n".join(ledger_lines))
+            f.write("\n".join(ledger_lines) + "\n")
 
         monthly_filename = f"{currency}CZK-monthly.ledger"
         with open(monthly_filename, "w", encoding="utf-8") as f:
-            f.write("\n".join(monthly_lines))
+            f.write("\n".join(monthly_lines) + "\n")
 
         print(f"{currency}: {len(ledger_lines)} entries saved.")
 
