@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 
 # Parse options using getopt
-OPTIONS=$(getopt -o '' --long from:,to: -- "$@")
+OPTIONS=$(getopt -o '' --long from:,to:,to-prefix: -- "$@")
 if [ $? -ne 0 ]; then
-    echo "Usage: $0 [--from NEW_FROM] [--to NEW_TO] file1 [file2 ...]"
+    echo "Usage: $0 [--from NEW_FROM] [--to NEW_TO] [--to-prefix PREFIX] file1 [file2 ...]"
     exit 1
 fi
 
@@ -11,6 +11,7 @@ eval set -- "$OPTIONS"
 
 from_currency=""
 to_currency=""
+to_prefix=""
 
 while true; do
     case "$1" in
@@ -20,6 +21,10 @@ while true; do
             ;;
         --to)
             to_currency="$2"
+            shift 2
+            ;;
+        --to-prefix)
+            to_prefix="$2"
             shift 2
             ;;
         --)
@@ -33,8 +38,14 @@ while true; do
     esac
 done
 
+# Check mutual exclusivity
+if [[ -n "$to_currency" && -n "$to_prefix" ]]; then
+    echo "Error: --to and --to-prefix cannot be used together."
+    exit 1
+fi
+
 if [[ $# -lt 1 ]]; then
-    echo "Usage: $0 [--from NEW_FROM] [--to NEW_TO] file1 [file2 ...]"
+    echo "Usage: $0 [--from NEW_FROM] [--to NEW_TO] [--to-prefix PREFIX] file1 [file2 ...]"
     exit 1
 fi
 
@@ -55,9 +66,13 @@ for file in "$@"; do
         newfile="${filename}-modded.${extension}"
     fi
 
-    awk -v from="$from_currency" -v to="$to_currency" '{
+    awk -v from="$from_currency" -v to="$to_currency" -v prefix="$to_prefix" '{
         if (from != "") $3 = from;
-        if (to   != "") $5 = to;
+        if (to != "") $5 = to;
+        if (prefix != "") {
+            $4 = prefix $4;  # prepend prefix to rate
+            $5 = "";          # remove original currency code
+        }
         print
     }' OFS=" " "$file" > "$newfile"
 
