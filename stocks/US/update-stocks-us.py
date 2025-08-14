@@ -12,6 +12,7 @@ CURRENT_STOCKS = [
     "AMD",
     "AMZN",
     "AVGO",
+    "BRK-B",
     "DIS",
     "GM",
     "GOOG",
@@ -33,7 +34,7 @@ CURRENT_STOCKS = [
     "XOM",
 ]
 
-dual_download_tickers = ["SPY", "QQQ"]
+dual_download_tickers = ["SPY", "QQQ", "BRK-B"]
 
 HISTORIC_STOCKS = [
     "GLF",
