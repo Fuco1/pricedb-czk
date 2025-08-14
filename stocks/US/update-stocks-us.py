@@ -43,26 +43,6 @@ HISTORIC_STOCKS = [
 ]
 
 BASE_URL = "https://stooq.com/q/d/l/"
-USDCZK_FILE = Path("../../currency/CZK/USDCZK.ledger")
-
-
-def load_usdczk_rates():
-    """Load USD to CZK rates from a ledger file."""
-    rates = {}
-    if not USDCZK_FILE.exists():
-        return rates
-    with open(USDCZK_FILE, encoding="utf-8") as f:
-        for line in f:
-            parts = line.strip().split()
-            if len(parts) >= 4 and parts[0] == "P":
-                date_str = parts[1]
-                try:
-                    date_obj = datetime.strptime(date_str, "%Y/%m/%d")
-                except ValueError:
-                    continue
-                rate = float(parts[3])
-                rates[date_obj] = rate
-    return rates
 
 
 def fetch_stock_data(ticker, skip_div_adjustment=True):
@@ -84,43 +64,24 @@ def format_line(date_str, ticker, close_value, currency="USD"):
     return f"P {dt.strftime('%Y/%m/%d')} {ticker} {close_value:.2f} {currency}"
 
 
-usdczk_rates = None
-
-
-def process_stock(ticker, skip_div_adjustment=True, dividend_adjusted=False):
+def process_stock(ticker, dividend_adjusted=False):
     """Download stock CSV and write full and monthly ledgers."""
-    global usdczk_rates
-    csv_data = fetch_stock_data(ticker, skip_div_adjustment)
+    csv_data = fetch_stock_data(ticker, not dividend_adjusted)
     reader = csv.DictReader(StringIO(csv_data))
 
     ticker_output = ticker
     if dividend_adjusted:
         ticker_output = ticker_output + "d"
 
+    ticker_output = ticker_output.replace("-", "_")
+
     full_path = Path(f"{ticker_output}.ledger")
     monthly_path = Path(f"{ticker_output}-monthly.ledger")
 
-    # For SPY/QQQ also prepare CZK files
-    do_czk = ticker in {"SPY", "QQQ"}
-    if do_czk and usdczk_rates is None:
-        usdczk_rates = load_usdczk_rates()
-    if do_czk:
-        full_czk_path = Path(f"{ticker_output}CZK.ledger")
-        monthly_czk_path = Path(f"{ticker_output}CZK-monthly.ledger")
-
     with open(full_path, "w", encoding="utf-8") as full_file, open(
         monthly_path, "w", encoding="utf-8"
-    ) as monthly_file, (
-        open(full_czk_path, "w", encoding="utf-8")
-        if do_czk
-        else open(Path("/dev/null"), "w")
-    ) as full_czk_file, (
-        open(monthly_czk_path, "w", encoding="utf-8")
-        if do_czk
-        else open(Path("/dev/null"), "w")
-    ) as monthly_czk_file:
+    ) as monthly_file:
         last_month = None
-        last_month_czk = None
 
         for row in reader:
             if not row["Close"]:
@@ -136,19 +97,6 @@ def process_stock(ticker, skip_div_adjustment=True, dividend_adjusted=False):
             if last_month != month_key:
                 monthly_file.write(line_usd + "\n")
                 last_month = month_key
-
-            # Handle CZK conversion for SPY/QQQ
-            if do_czk:
-                rate = usdczk_rates.get(dt)
-                if rate:
-                    czk_price = close_price * rate
-                    line_czk = format_line(
-                        date_str, f"{ticker_output}CZK", czk_price, "CZK"
-                    )
-                    full_czk_file.write(line_czk + "\n")
-                    if last_month_czk != month_key:
-                        monthly_czk_file.write(line_czk + "\n")
-                        last_month_czk = month_key
 
 
 def main():
@@ -176,7 +124,7 @@ def main():
 
         if ticker in dual_download_tickers:
             print(f"Processing {ticker}d...")
-            process_stock(ticker, False, True)
+            process_stock(ticker, True)
 
 
 if __name__ == "__main__":
