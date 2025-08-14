@@ -18,4 +18,7 @@ jobs:
       - name: update stocks pse
         working-directory: ./stocks/PSE
         run: ./update-stocks-pse.py
+      - name: update stocks us
+        working-directory: ./stocks/US
+        run: ./update-stocks-us.py
       - uses: stefanzweifel/git-auto-commit-action@v4
