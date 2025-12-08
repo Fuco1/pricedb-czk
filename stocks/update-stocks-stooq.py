@@ -7,43 +7,6 @@ from datetime import datetime
 from pathlib import Path
 from io import StringIO
 
-# === Stock lists ===
-CURRENT_STOCKS = [
-    "AAPL",
-    "AMD",
-    "AMZN",
-    "AVGO",
-    "BRK-B",
-    "DIS",
-    "GM",
-    "GOOG",
-    "GPC",
-    "M",
-    "MA",
-    "MO",
-    "MSFT",
-    "NVDA",
-    "O",
-    "PYPL",
-    "STAG",
-    "SPY",
-    "T",
-    "TDW",
-    "TSLA",
-    "VLO",
-    "WFC",
-    "XOM",
-]
-
-dual_download_tickers = ["SPY", "QQQ", "BRK-B"]
-
-HISTORIC_STOCKS = [
-    "GLF",
-    "JWN",
-    "NMM",
-    "XLNX",
-]
-
 BASE_URL = "https://stooq.com/q/d/l/"
 
 
