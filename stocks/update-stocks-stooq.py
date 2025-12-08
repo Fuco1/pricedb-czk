@@ -58,6 +58,8 @@ def process_stock(ticker, dividend_adjusted=False, suffix=".us"):
         monthly_path, "w", encoding="utf-8"
     ) as monthly_file:
         last_month = None
+        last_line = None
+        month_dt = None
 
         for row in reader:
             if not row["Close"]:
@@ -68,11 +70,20 @@ def process_stock(ticker, dividend_adjusted=False, suffix=".us"):
             line_usd = format_line(date_str, ticker_output, close_price, "USD")
             full_file.write(line_usd + "\n")
 
+            last_line = line_usd
+
             dt = datetime.strptime(date_str, "%Y-%m-%d")
             month_key = (dt.year, dt.month)
             if last_month != month_key:
                 monthly_file.write(line_usd + "\n")
                 last_month = month_key
+                month_dt = dt
+
+        if dt != month_dt:
+            ## We want to print the last available line in the monthly file even
+            ## if it is not at the month's threshold.  This will keep the price
+            ## up to date even when only using monthly history.
+            monthly_file.write(last_line + "\n")
 
 
 def main():
