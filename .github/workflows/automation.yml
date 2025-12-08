@@ -12,6 +12,7 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v3
+
       - name: update currency czk
         working-directory: ./currency/CZK
         run: ./update-currency-czk.py
@@ -20,5 +21,9 @@ jobs:
         run: ./update-stocks-pse.py
       - name: update stocks us
         working-directory: ./stocks/US
-        run: ./update-stocks-us.py
+        run: ./../update-stocks-stooq.py --suffix .us
+      - name: update stocks uk
+        working-directory: ./stocks/LSE
+        run: ./../update-stocks-stooq.py --suffix .uk
+
       - uses: stefanzweifel/git-auto-commit-action@v4

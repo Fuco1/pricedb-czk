@@ -1,0 +1,36 @@
+current_stocks:
+  - AAPL
+  - AMD
+  - AMZN
+  - AVGO
+  - BRK-B
+  - DIS
+  - GM
+  - GOOG
+  - GPC
+  - M
+  - MA
+  - MO
+  - MSFT
+  - NVDA
+  - O
+  - PYPL
+  - STAG
+  - SPY
+  - T
+  - TDW
+  - TSLA
+  - VLO
+  - WFC
+  - XOM
+
+dual_download_tickers:
+  - SPY
+  - QQQ
+  - BRK-B
+
+historic_stocks:
+  - GLF
+  - JWN
+  - NMM
+  - XLNX
