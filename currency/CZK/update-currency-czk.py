@@ -10,7 +10,6 @@ import re
 # Still existing currencies
 currencies_existing = [
     "AUD",  # Australian Dollar
-    "BGN",  # Bulgarian Lev
     "BRL",  # Brazilian Real
     "CAD",  # Canadian Dollar
     "CHF",  # Swiss Franc
@@ -47,6 +46,7 @@ currencies_existing = [
 currencies_discontinued = [
     "ATS",  # Austrian Schilling → EUR 1999/2002
     "BEF",  # Belgian Franc → EUR 1999/2002
+    "BGN",  # Bulgarian Lev → EUR 2026
     "CYP",  # Cypriot Pound → EUR 2008
     "DEM",  # German Mark → EUR 1999/2002
     "EEK",  # Estonian Kroon → EUR 2011
