@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 import argparse
 import csv
+import os
+import sys
 import yaml
 import requests
 from datetime import datetime
@@ -29,6 +31,9 @@ def fetch_stock_data(ticker, skip_div_adjustment=True, suffix=".us"):
     div_bit = "1" if skip_div_adjustment else "0"
     o_param = f"{split_bit}{div_bit}00000"
     url = f"{BASE_URL}?s={ticker}{suffix}&f=20150101&t={today_str}&i=d&o={o_param}"
+    api_key = os.environ.get("STOOQ_API_KEY")
+    if api_key:
+        url += f"&apikey={api_key}"
     r = requests.get(url)
     r.raise_for_status()
     return r.text
@@ -103,6 +108,12 @@ def main():
         "--config", default="config.yaml", help="Path to YAML config file"
     )
     args = parser.parse_args()
+
+    if not os.environ.get("STOOQ_API_KEY"):
+        sys.exit(
+            "Error: STOOQ_API_KEY is not set. Set it in the environment "
+            "(or a local .env file) before running."
+        )
 
     current_stocks, dual_download_tickers, historic_stocks = load_config(args.config)
 

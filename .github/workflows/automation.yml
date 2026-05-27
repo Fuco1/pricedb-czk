@@ -21,9 +21,13 @@ jobs:
         run: ./update-stocks-pse.py
       - name: update stocks us
         working-directory: ./stocks/US
+        env:
+          STOOQ_API_KEY: ${{ secrets.STOOQ_API_KEY }}
         run: ./../update-stocks-stooq.py --suffix .us
       - name: update stocks uk
         working-directory: ./stocks/LSE
+        env:
+          STOOQ_API_KEY: ${{ secrets.STOOQ_API_KEY }}
         run: ./../update-stocks-stooq.py --suffix .uk
 
       - uses: stefanzweifel/git-auto-commit-action@v4
