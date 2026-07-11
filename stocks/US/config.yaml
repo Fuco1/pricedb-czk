@@ -21,6 +21,7 @@ current_stocks:
   - ORCL
   - PLTR
   - PYPL
+  - QQQ
   - STAG
   - SPY
   - T
@@ -29,11 +30,6 @@ current_stocks:
   - VLO
   - WFC
   - XOM
-
-dual_download_tickers:
-  - SPY
-  - QQQ
-  - BRK-B
 
 historic_stocks:
   - GLF

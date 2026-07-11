@@ -10,24 +10,30 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    env:
+      PIPENV_PIPFILE: ${{ github.workspace }}/Pipfile
     steps:
       - uses: actions/checkout@v3
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: install dependencies
+        run: |
+          pip install pipenv
+          pipenv install --deploy
+
       - name: update currency czk
         working-directory: ./currency/CZK
-        run: ./update-currency-czk.py
+        run: pipenv run ./update-currency-czk.py
       - name: update stocks pse
         working-directory: ./stocks/PSE
-        run: ./update-stocks-pse.py
+        run: pipenv run ./update-stocks-pse.py
       - name: update stocks us
         working-directory: ./stocks/US
         env:
-          STOOQ_API_KEY: ${{ secrets.STOOQ_API_KEY }}
-        run: ./../update-stocks-stooq.py --suffix .us
-      - name: update stocks uk
-        working-directory: ./stocks/LSE
-        env:
-          STOOQ_API_KEY: ${{ secrets.STOOQ_API_KEY }}
-        run: ./../update-stocks-stooq.py --suffix .uk
+          MASSIVE_API_KEY: ${{ secrets.MASSIVE_API_KEY }}
+        run: pipenv run ../update-stocks-massive.py
 
       - uses: stefanzweifel/git-auto-commit-action@v4
