@@ -57,15 +57,27 @@ def process_stock(isin, stock_name):
         monthly_path, "w", encoding="utf-8"
     ) as monthly_file:
         last_month = None
+        last_line = None
+        month_dt = None
+        dt = None
         for ts_ms, price in values:
             line = format_line(ts_ms, stock_name, price, currency)
             full_file.write(line + "\n")
+
+            last_line = line
 
             dt = datetime.utcfromtimestamp(ts_ms / 1000)
             month_key = (dt.year, dt.month)
             if last_month != month_key:
                 monthly_file.write(line + "\n")
                 last_month = month_key
+                month_dt = dt
+
+        if dt is not None and dt != month_dt:
+            ## We want to print the last available line in the monthly file even
+            ## if it is not at the month's threshold.  This keeps the price up to
+            ## date even when only using monthly history.
+            monthly_file.write(last_line + "\n")
 
 
 def main():
