@@ -45,8 +45,16 @@ Settled decisions:
   `requests` dependency.
 - **Raw price files** use `adjusted=false`: no split/dividend adjustment (splits
   handled manually in ledger by editing lots).
-- **Config keeps only `current_stocks` + `historic_stocks`.** `dual_download_tickers`
-  is deleted; `QQQ` moves into `current_stocks`.
+- **Config keys:** `current_stocks`, `historic_stocks`, and `also_dividend_adjusted`
+  (re-added with a clearer name — the old `dual_download_tickers`). `QQQ` also moved
+  into `current_stocks` so its raw prices update. `also_dividend_adjusted`
+  (US: `SPY`, `QQQ`, `BRK.B`) drives the dividend cache (Step 3) and later the `d`
+  series (Step 4), so the whole dividend-adjusted pipeline is config-driven and
+  automatic — no hardcoded ticker list.
+- **Tickers are listed in config as the API expects them** (e.g. `BRK.B`, not
+  `BRK-B`) — no symbol translation. The only transform is for the ledger
+  commodity/filename, which forbids `.`/`-`, so `output_base` maps every
+  non-alphanumeric char to `_` (`BRK.B` → `BRK_B`).
 - **`update-stocks-stooq.py` is left untouched** — removing the config key is safe
   for it (`config.get("dual_download_tickers", [])` defaults to `[]`).
 - **UK removed** — no LSE step in CI; `CSPX` has no source now.
@@ -56,8 +64,8 @@ Settled decisions:
   **net of tax** (`net_div = cash_amount × (1 − tax_rate)`); ex-date is irrelevant.
   Forward-chained so historical values are never rewritten by a new dividend; a
   recompute that *would* change a committed row is a hard error (crash).
-- **Dividend/`d` tickers** are `SPY`, `QQQ`, `BRK-B` — carried by the companion
-  script, not the config.
+- **Dividend/`d` tickers** come from `also_dividend_adjusted` in the config
+  (US: `SPY`, `QQQ`, `BRK-B`).
 - **Splits for `d`** are a separate, manual, full-file recompute.
 
 ## Step-by-step plan
@@ -78,8 +86,9 @@ idempotent rerun, and `BRK-B`→`BRK.B`→`BRK_B.ledger` mapping works.
 - **Ticker set:** `current_stocks` (+ `historic_stocks` under `--historic`, or just
   `--ticker`).
 - **Per-ticker flow:**
-  1. API symbol = `ticker.replace("-", ".")` (`BRK-B`→`BRK.B`); output base =
-     `ticker.replace("-", "_")`.
+  1. Ticker is used verbatim for the API (config lists `BRK.B`); output base maps
+     non-alphanumerics to `_` (`BRK.B`→`BRK_B`). (Originally translated `-`→`.`;
+     simplified to list the native symbol in config.)
   2. Read `<base>.ledger`, parse last non-empty line → `last_date`. Missing/empty
      file (0-byte `GLF.ledger`) → `today − 2y` backfill, logged; empty API results →
      no-op + warn.
@@ -102,29 +111,32 @@ idempotent rerun, and `BRK-B`→`BRK.B`→`BRK_B.ledger` mapping works.
 **Result:** done. US `current_stocks` now 31 tickers incl. QQQ; both configs parse
 with only `current_stocks` + `historic_stocks`.
 
-### Step 3 — Dividend cache `TICKER-dividend.csv`
+### Step 3 — Dividend cache `TICKER-dividend.csv` (config-driven, automatic) [executed]
 
-For each dividend ticker (`SPY`, `QQQ`, `BRK-B`), in `stocks/US/`:
+**Result:** implemented in `update-stocks-massive.py` + `also_dividend_adjusted`
+re-added to `stocks/US/config.yaml` (`SPY`, `QQQ`, `BRK-B`). Verified live: a single
+`--ticker SPY` run cached 78 dividends (pay_date first, ascending, through the latest
+announced payout 2026-07-31); the freshness gate then skipped re-fetching on rerun
+(no API call). No `jq`/`mlr` needed.
+
+Folded into `update-stocks-massive.py` (SDK-based, no `jq`/`mlr`) so the single CI
+step does it automatically. After the raw-price pass, for each ticker in
+`also_dividend_adjusted` (in `stocks/US/`):
 
 - **Freshness gate:** if `TICKER-dividend.csv` exists, read its last `pay_date`;
-  expected next ≈ `last pay_date + 3 months`. If `today < expected next` → skip the
-  download. Non-payers (BRK-B → empty results) are treated as fresh.
-- **Fetch + transform** (only when stale):
-  ```
-  curl -s "https://api.massive.com/stocks/v1/dividends?ticker=$T&limit=5000&apiKey=$KEY" \
-    | jq '.results' \
-    | mlr --ijson --ocsv reorder -f pay_date then sort -f pay_date \
-    > "$T-dividend.csv"
-  ```
-  → all `.results` fields as CSV, **`pay_date` first column, ascending**. `pay_date`
+  expected next ≈ `last pay_date + 3 months` (calendar month add). If
+  `today < expected next` → skip the fetch. A file that exists but has no dividend
+  rows (non-payer, e.g. BRK-B) is treated as fresh (don't re-hit the API every run).
+- **Fetch (only when stale):** `client.list_stocks_dividends(ticker=SYM)` (SDK
+  auto-paginates), sort by `pay_date` ascending, write CSV with a header and
+  **`pay_date` as the first column**. Columns: `pay_date, ex_dividend_date,
+  record_date, declaration_date, cash_amount, currency, frequency, distribution_type,
+  historical_adjustment_factor, split_adjusted_cash_amount, ticker, id`. `pay_date`
   is the reinvestment date used by Step 4.
-- Orchestrate the loop/gate in a small script so CI calls it once; needs `jq`+`mlr`.
-- **SDK alternative (now preferred, TBD at implementation):** since we already use the
-  `massive` SDK, `list_stocks_dividends(ticker=…, sort="pay_date.asc")` can produce the
-  same CSV in pure Python (write `pay_date` first, sorted asc) — dropping the
-  `jq`/`mlr` dependency. Decide when building this step.
+- Ticker set: full run → all of `also_dividend_adjusted`; `--ticker X` → only X, and
+  only if X is in the list.
 - **Verification:** `SPY-dividend.csv` has quarterly rows through the latest payout;
-  rerunning before the next expected pay date makes no API call and no diff.
+  a rerun before the next expected pay date makes no API call and no diff.
 
 ### Step 4 — Regenerate `d` (DRIP total-return) ledgers
 

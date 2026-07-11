@@ -3,7 +3,7 @@ current_stocks:
   - AMD
   - AMZN
   - AVGO
-  - BRK-B
+  - BRK.B
   - DIS
   - FSLY
   - GM
@@ -30,6 +30,14 @@ current_stocks:
   - VLO
   - WFC
   - XOM
+
+# Tickers that also get a dividend cache (<ticker>-dividend.csv) and, later, a
+# dividend-adjusted total-return "d" series. Must also appear in current_stocks
+# (or historic_stocks) to have raw prices fetched.
+also_dividend_adjusted:
+  - SPY
+  - QQQ
+  - BRK.B
 
 historic_stocks:
   - GLF
