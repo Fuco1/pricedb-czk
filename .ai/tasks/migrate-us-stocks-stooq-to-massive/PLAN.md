@@ -138,36 +138,40 @@ step does it automatically. After the raw-price pass, for each ticker in
 - **Verification:** `SPY-dividend.csv` has quarterly rows through the latest payout;
   a rerun before the next expected pay date makes no API call and no diff.
 
-### Step 4 — Regenerate `d` (DRIP total-return) ledgers
+### Step 4 — Regenerate `d` (DRIP total-return) ledgers [executed]
 
-Rebuild each `TICKERd.ledger` as the DRIP benchmark (hold + reinvest taxed
-dividends), from the committed **raw** `TICKER.ledger` + `TICKER-dividend.csv`.
+Model corrected after review: it is **back-adjustment** (like Yahoo adjusted close),
+not forward chaining. The most recent price equals the raw price; *earlier* prices
+are made **cheaper** so buying at the adjusted price captures price return + DRIP.
 
-- **Reinvest on `pay_date`, net of tax:** `net_div = cash_amount × (1 − tax_rate)`
-  (`tax_rate` a configurable const, default **0.15** — see open question).
-- **Chain** (one raw close per trading day):
-  `adj_t = adj_{t-1} × (close_t + net_div_t) / close_{t-1}`, where `net_div_t` is the
-  taxed dividend with `pay_date == t`, else 0. Between dividends this is
-  `adj_t = adj_{t-1} × close_t/close_{t-1}` → each raw close scaled by one constant
-  DRIP factor; every `pay_date` steps the factor up.
-- **History-preserving with crash guard:** recompute from a committed anchor a few
-  days *before the most-recent `pay_date`* (seed = the committed `d` value there),
-  forward through today. Every recomputed date already present in `TICKERd.ledger`
-  **must equal** the committed value; if any differs → **crash** with a clear
-  message (late/early dividend, data revision, unhandled split, or bug — we stop
-  rather than rewrite history). New dates are appended.
+- **Reinvest on `pay_date`, net of tax:** a dividend paid on trading day `p` (first
+  trading day ≥ `pay_date`) buys shares at that day's close, giving a factor
+  `f = 1 + net_div/close_p` where `net_div = cash × (1 − tax_rate)`.
+- **Back-adjust:** `adjusted[t] = raw[t] / ∏(f_i for all pay days p_i > t)`. So
+  `adjusted == raw` from today back to the last pay date, then diverges (cheaper).
+- **Whole file rewritten every run** — the `d` series is a pure function of raw +
+  dividends. When a new dividend is paid, all past prices correctly become cheaper
+  (this rewrite is expected and correct; **no crash guard / no append protection** —
+  the user confirmed this is inevitable). The first run replaces the old stooq-built
+  `d` history with this net-of-tax method (a one-time large diff).
+- Dividends before the raw history start, or not yet paid (pay date beyond the last
+  close), are ignored. `tax_rate` = const `DIVIDEND_TAX_RATE = 0.15`, overridable via
+  `--dividend-tax-rate`. `BRK.B`: empty CSV → no factors → `BRK_Bd == BRK_B` raw.
 - Regenerate `TICKERd-monthly.ledger` like the raw monthly files.
-- BRK-B: empty dividend CSV → `net_div = 0` → `BRK_Bd` tracks the raw close.
-- **Verification:** hand-check one `pay_date` row (steps up by `net_div/close_pay`);
-  between-dividend `d` matches raw growth; recompute reproduces committed rows (no
-  crash) and appends after 2026-06-03.
+
+**Result:** implemented as `process_dividend_adjusted` (runs for
+`also_dividend_adjusted` after the raw + dividend passes). Verified **offline** (no
+API calls): synthetic example (pay 01-06 close 102, net 2.55 → factor 1.025 → prior
+prices 100→97.56, 101→98.54; pay date and later == raw), and a real run on committed
+QQQ (raw→2025-08-12): `QQQd[last] == raw[last]` (580.05), `QQQd == raw` back to the
+last pay date 2025-07-31, earlier prices cheaper (2015 ratio ≈ 1.0704 ≈ 10y of net
+QQQ dividends).
 
 ### Step 5 — Splits: separate, manual, full recompute
 
-Splits are **not** handled by daily Step 4 (a split makes the raw close jump; the
-crash guard only catches changes to *committed* rows, not new ones, so an unhandled
-split silently corrupts the chain — the user triggers this recompute when a split
-happens).
+Splits are **not** handled by Step 4 (a split makes the raw close jump, which the
+back-adjustment would carry into the `d` series as a real move). The user handles
+splits out of band, re-downloading split data and recomputing when one occurs.
 
 - Scripted split download:
   `curl "…/stocks/v1/splits?ticker=$T&apiKey=$KEY" | jq '.results' | mlr --ijson --ocsv … > "$T-split.csv"`.

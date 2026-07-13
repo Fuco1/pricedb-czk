@@ -17,6 +17,7 @@ fetches from ``last_date - buffer`` to today, and appends only the missing days.
 With ``to = today`` this covers any gap since the last run regardless of size.
 """
 import argparse
+import bisect
 import csv
 import os
 import re
@@ -39,6 +40,8 @@ MIN_REQUEST_INTERVAL = 13.0
 BACKFILL_DAYS = 730
 # Refetch a ticker's dividend cache only once we're ~a quarter past its last payout.
 DIVIDEND_CACHE_MONTHS = 3
+# Default withholding-tax drag on dividends reinvested in the "d" total-return series.
+DIVIDEND_TAX_RATE = 0.15
 # Columns for <ticker>-dividend.csv (pay_date first: the reinvestment date).
 DIVIDEND_COLUMNS = [
     "pay_date", "ex_dividend_date", "record_date", "declaration_date",
@@ -226,6 +229,102 @@ def process_dividends(ticker):
     print(f"  cached {len(dividends)} dividend(s) -> {path.name}")
 
 
+def parse_iso_date(value):
+    """Parse a YYYY-MM-DD string to a date, or None."""
+    if not value:
+        return None
+    try:
+        return datetime.strptime(value, "%Y-%m-%d").date()
+    except ValueError:
+        return None
+
+
+def parse_dividend_csv(path):
+    """Return [(pay_date, ex_dividend_date, cash_amount)] from a dividend CSV."""
+    out = []
+    if not path.exists():
+        return out
+    with open(path, newline="", encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            cash = row.get("cash_amount")
+            if not cash:
+                continue
+            try:
+                amount = float(cash)
+            except ValueError:
+                continue
+            out.append(
+                (
+                    parse_iso_date(row.get("pay_date")),
+                    parse_iso_date(row.get("ex_dividend_date")),
+                    amount,
+                )
+            )
+    return out
+
+
+def process_dividend_adjusted(ticker, tax_rate):
+    """Rebuild the DRIP total-return <base>d.ledger from raw prices + dividends.
+
+    Back-adjustment (a "would DRIP-ing this have beaten my portfolio?" benchmark):
+    the most recent price equals the raw price, and every *earlier* price is made
+    cheaper so that buying at the adjusted price captures the stock's return plus
+    dividends reinvested, net of ``tax_rate``, on their pay date. A dividend paid on
+    trading day p (buying shares at that day's close) contributes a factor
+
+        factor = 1 + net_div / close_p          (net_div = cash * (1 - tax_rate))
+
+    applied to every price strictly *before* p:
+
+        adjusted[t] = raw[t] / product(factor_i for all pay days p_i > t)
+
+    So adjusted == raw from today back to the last pay date, then diverges. The whole
+    file is rewritten every run (a pure function of raw + dividends): when a new
+    dividend is paid, all past prices correctly become cheaper."""
+    base = output_base(ticker)
+    d_base = base + "d"
+    raw_rows = parse_ledger(Path(f"{base}.ledger").read_text(encoding="utf-8")) \
+        if Path(f"{base}.ledger").exists() else []
+    if not raw_rows:
+        print(f"  {d_base}: no raw prices; skipping")
+        return
+
+    raw_dates = [d for d, _ in raw_rows]
+    close_by_date = dict(raw_rows)
+    first_raw, last_raw = raw_dates[0], raw_dates[-1]
+
+    # Each dividend reinvests on its pay date (first trading day >= pay_date), buying
+    # shares at that day's close. Ignore dividends paid before our price history or
+    # not yet paid (pay date beyond the latest close).
+    events = []  # (effective_pay_date, factor)
+    for pay_date, _ex, cash in parse_dividend_csv(Path(f"{base}-dividend.csv")):
+        if pay_date is None or pay_date < first_raw or pay_date > last_raw:
+            continue
+        eff = raw_dates[bisect.bisect_left(raw_dates, pay_date)]
+        ref_close = close_by_date[eff]
+        if ref_close > 0:
+            events.append((eff, 1.0 + cash * (1 - tax_rate) / ref_close))
+    events.sort()
+
+    # Walk newest -> oldest, folding in each factor once we pass (strictly before)
+    # its pay date, so prices before a dividend are divided by all later factors.
+    d_rows = []
+    divisor = 1.0
+    ei = len(events) - 1
+    for date in reversed(raw_dates):
+        while ei >= 0 and events[ei][0] > date:
+            divisor *= events[ei][1]
+            ei -= 1
+        d_rows.append((date, close_by_date[date] / divisor))
+    d_rows.reverse()
+
+    Path(f"{d_base}.ledger").write_text(
+        "".join(format_line(d, d_base, v) + "\n" for d, v in d_rows), encoding="utf-8"
+    )
+    write_monthly(Path(f"{d_base}-monthly.ledger"), d_rows, d_base)
+    print(f"  {d_base}: wrote {len(d_rows)} rows ({first_raw} .. {last_raw})")
+
+
 def process_stock(ticker, buffer_days):
     """Incrementally update the raw daily and monthly ledgers for one ticker."""
     base = output_base(ticker)
@@ -290,6 +389,13 @@ def main():
         help="Days of backward overlap when fetching the incremental update.",
     )
     parser.add_argument(
+        "--dividend-tax-rate",
+        type=float,
+        default=DIVIDEND_TAX_RATE,
+        help="Withholding-tax drag on dividends reinvested in the 'd' series "
+        f"(default {DIVIDEND_TAX_RATE}).",
+    )
+    parser.add_argument(
         "--api-key",
         help="massive.com API key. Falls back to the MASSIVE_API_KEY env var.",
     )
@@ -331,6 +437,10 @@ def main():
     for ticker in div_targets:
         print(f"Dividends for {ticker}...")
         process_dividends(ticker)
+
+    for ticker in div_targets:
+        print(f"Dividend-adjusted {ticker}...")
+        process_dividend_adjusted(ticker, args.dividend_tax_rate)
 
 
 if __name__ == "__main__":
