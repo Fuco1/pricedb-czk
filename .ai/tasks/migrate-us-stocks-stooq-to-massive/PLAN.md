@@ -11,7 +11,7 @@ Replace the dead stooq.com scraper with new massive.com-based tooling:
    benchmark by forward chaining, **without changing already-committed history**.
 
 Success criterion: a daily run appends only missing raw dates; the `d` series is a
-correct DRIP benchmark (price growth + taxed dividends reinvested on pay date) and
+correct DRIP benchmark (price growth + taxed dividends reinvested at the ex-date) and
 its recompute reproduces every committed row exactly — **crashing** if it ever
 wouldn't; CI runs green under the free-plan rate limit with UK removed.
 
@@ -60,10 +60,11 @@ Settled decisions:
 - **UK removed** — no LSE step in CI; `CSPX` has no source now.
 - **Incremental append (raw)**: fetch `last_date − buffer(20d) .. today`, append only
   `date > last_date`.
-- **`d` series = DRIP total-return benchmark**: reinvest dividends **on `pay_date`**,
-  **net of tax** (`net_div = cash_amount × (1 − tax_rate)`); ex-date is irrelevant.
-  Forward-chained so historical values are never rewritten by a new dividend; a
-  recompute that *would* change a committed row is a hard error (crash).
+- **`d` series = DRIP total-return benchmark** via **back-adjustment** (today == raw,
+  earlier prices cheaper): each dividend, **net of tax** (`cash × (1 − tax_rate)`),
+  is captured on its **ex-date** with factor `1 + net_div/close_ex`; splits divide by
+  `split_to/split_from`. The whole file is recomputed every run (a new dividend
+  legitimately makes all past prices cheaper — no crash guard). See Step 4.
 - **Dividend/`d` tickers** come from `also_dividend_adjusted` in the config
   (US: `SPY`, `QQQ`, `BRK-B`).
 - **Splits for `d`** are a separate, manual, full-file recompute.
@@ -144,40 +145,61 @@ Model corrected after review: it is **back-adjustment** (like Yahoo adjusted clo
 not forward chaining. The most recent price equals the raw price; *earlier* prices
 are made **cheaper** so buying at the adjusted price captures price return + DRIP.
 
-- **Reinvest on `pay_date`, net of tax:** a dividend paid on trading day `p` (first
-  trading day ≥ `pay_date`) buys shares at that day's close, giving a factor
-  `f = 1 + net_div/close_p` where `net_div = cash × (1 − tax_rate)`.
-- **Back-adjust:** `adjusted[t] = raw[t] / ∏(f_i for all pay days p_i > t)`. So
-  `adjusted == raw` from today back to the last pay date, then diverges (cheaper).
+- **Boundary = ex-date (corrected after review):** a dividend is captured on its
+  **ex-dividend date** `e` (when the price drops and you become entitled by owning
+  before it). The net dividend buys shares at the ex-date close:
+  `f = 1 + net_div/close_e`, `net_div = cash × (1 − tax_rate)`. (Reinvesting *is*
+  physically on the pay date, but for the total-return index the ex-date is the
+  correct anchor — see the cancel-out note below.)
+- **Back-adjust:** `adjusted[t] = raw[t] / ∏(f_i for all ex dates e_i > t)`. So
+  `adjusted == raw` from today back to the last ex-date, then diverges (cheaper).
 - **Whole file rewritten every run** — the `d` series is a pure function of raw +
-  dividends. When a new dividend is paid, all past prices correctly become cheaper
+  dividends. When a dividend goes ex, all prices before it correctly become cheaper
   (this rewrite is expected and correct; **no crash guard / no append protection** —
   the user confirmed this is inevitable). The first run replaces the old stooq-built
   `d` history with this net-of-tax method (a one-time large diff).
-- Dividends before the raw history start, or not yet paid (pay date beyond the last
-  close), are ignored. `tax_rate` = const `DIVIDEND_TAX_RATE = 0.15`, overridable via
+- Dividends that went ex before the raw history starts, or have not gone ex yet, are
+  ignored. `tax_rate` = const `DIVIDEND_TAX_RATE = 0.15`, overridable via
   `--dividend-tax-rate`. `BRK.B`: empty CSV → no factors → `BRK_Bd == BRK_B` raw.
 - Regenerate `TICKERd-monthly.ledger` like the raw monthly files.
 
+**Why ex-date (cancel-out):** buying before ex earns the dividend, so pre-ex prices
+must be cheaper; a buyer who then sells *after* ex holds more (adjusted) shares but
+sells at the raw price, which dropped by the *gross* dividend on the ex-date — the
+two effects cancel except for the tax, leaving `pre-div price − tax` = the correct
+taxed-DRIP total return. Verified: an "invest $10000, value at the ex-date"
+equivalence test (buy raw + collect taxed dividend  vs  buy adjusted shares) matched
+to $0.004 on SPY.
+
 **Result:** implemented as `process_dividend_adjusted` (runs for
 `also_dividend_adjusted` after the raw + dividend passes). Verified **offline** (no
-API calls): synthetic example (pay 01-06 close 102, net 2.55 → factor 1.025 → prior
-prices 100→97.56, 101→98.54; pay date and later == raw), and a real run on committed
-QQQ (raw→2025-08-12): `QQQd[last] == raw[last]` (580.05), `QQQd == raw` back to the
-last pay date 2025-07-31, earlier prices cheaper (2015 ratio ≈ 1.0704 ≈ 10y of net
-QQQ dividends).
+API calls): synthetic (ex 01-05 close 101 → factor 1.02525 → 01/02 → 97.54, ex date
+and later == raw), and real QQQ (raw→2025-08-12): `QQQd[last] == raw[last]` (580.05),
+`QQQd == raw` back to the last ex-date 2025-06-23, earlier prices cheaper.
 
-### Step 5 — Splits: separate, manual, full recompute
+### Step 5 — Splits: cached CSV + folded into the back-adjustment [executed]
 
-Splits are **not** handled by Step 4 (a split makes the raw close jump, which the
-back-adjustment would carry into the `d` series as a real move). The user handles
-splits out of band, re-downloading split data and recomputing when one occurs.
+Splits are cached per ticker (like dividends) and folded into the `d`-series
+back-adjustment; the download is manual (flag-triggered) since splits are rare.
 
-- Scripted split download:
-  `curl "…/stocks/v1/splits?ticker=$T&apiKey=$KEY" | jq '.results' | mlr --ijson --ocsv … > "$T-split.csv"`.
-- Manual recompute rewrites the **entire** `TICKERd.ledger` with the split applied
-  (affected historical prices rescaled by the split ratio), then resumes forward
-  chaining. Exact split-adjustment convention TBD when first needed — deferred.
+- **Download (flag-triggered):** `--download-splits` (requires `--ticker`) fetches
+  `client.list_stocks_splits` and writes `<base>-split.csv` (columns:
+  `execution_date` first, sorted asc; `split_from`, `split_to`, `adjustment_type`,
+  `historical_adjustment_factor`, `ticker`, `id`). SDK-based, no `jq`/`mlr`.
+- **Adjustment:** `process_dividend_adjusted` reads `<base>-split.csv` if present and
+  adds a factor `split_to/split_from` for each split whose execution date is in the
+  raw range, applied to all prices strictly before it (a pure share ratio, no
+  reference price) — combined with the dividend factors in the same back-walk. This
+  keeps the total-return series continuous across a split. Because the whole `d`
+  file is rewritten each run, no separate "manual recompute" step is needed; the
+  cached CSV just needs to exist.
+
+**Result:** implemented + verified. Offline: split-only (2:1 → pre-split halved) and
+dividend+split (`400/(2×1.008416)=198.33`) cases exact. Guard: `--download-splits`
+without `--ticker` errors. Live (1 API call): downloaded real AAPL splits; generating
+`AAPLd` from committed AAPL raw applied only the in-range 2020 4:1 split →
+`AAPLd[2015-01-02] = 109.33/4 = 27.33`, `AAPLd[last] = raw` (pre-2015 splits ignored).
+AAPL test artifacts removed (AAPL is not a `d`-ticker).
 
 ### Step 6 — CI + dependencies (pipenv-managed) [mostly executed]
 
