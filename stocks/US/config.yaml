@@ -37,7 +37,6 @@ current_stocks:
 also_dividend_adjusted:
   - SPY
   - QQQ
-  - BRK.B
 
 historic_stocks:
   - GLF
